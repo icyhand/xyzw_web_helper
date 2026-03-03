@@ -5,6 +5,19 @@
       <div class="page-header">
         <div class="header-content">
           <div class="header-top">
+            <n-button
+              class="header-back"
+              size="small"
+              secondary
+              @click="goBack"
+            >
+              <template #icon>
+                <n-icon>
+                  <ArrowBack />
+                </n-icon>
+              </template>
+              返回上一级
+            </n-button>
             <img src="/icons/xiaoyugan.png" alt="XYZW" class="brand-logo" />
             <!-- 主题切换按钮 -->
             <ThemeToggle />
@@ -77,6 +90,9 @@
         <div class="section-header">
           <n-space align="center">
             <h2>我的Token列表 ({{ tokenStore.gameTokens.length }}个)</h2>
+            <n-tag v-if="isAdminManagingUser" type="warning">
+              管理中：{{ tokenStore.adminManagedUser?.username }}
+            </n-tag>
             <n-radio-group v-model:value="viewMode" size="small">
               <n-radio-button value="list">列表</n-radio-button>
               <n-radio-button value="card">卡片</n-radio-button>
@@ -110,7 +126,7 @@
             </n-button-group>
           </n-space>
           <div class="header-actions">
-            <n-button type="success" @click="goToDashboard">
+            <n-button v-if="isAdmin" type="success" @click="goToDashboard">
               <template #icon>
                 <n-icon>
                   <List />
@@ -130,6 +146,15 @@
                 </n-icon>
               </template>
               添加Token
+            </n-button>
+
+            <n-button
+              v-if="isAdminManagingUser"
+              type="warning"
+              ghost
+              @click="exitAdminWorkspace"
+            >
+              返回管理员视图
             </n-button>
 
             <n-dropdown :options="bulkOptions" @select="handleBulkAction">
@@ -538,7 +563,7 @@
       </div>
 
       <!-- 空状态 -->
-      <a-empty v-if="!tokenStore.hasTokens && !showImportForm">
+      <a-empty v-if="!tokenStore.hasTokens && !showImportForm && !isAdmin">
         <template #image>
           <i class="mdi:bed-empty"></i>
         </template>
@@ -547,6 +572,57 @@
           >打开Token管理</a-button
         >
       </a-empty>
+
+      <!-- 管理员视图：查看/管理全部账号 Token -->
+      <div v-if="isAdmin" class="tokens-section" style="margin-top: 16px">
+        <div class="section-header">
+          <n-space align="center">
+            <h2>管理员：全部账号 Token</h2>
+            <n-tag type="warning">仅管理员可见</n-tag>
+          </n-space>
+          <div class="header-actions">
+            <n-button :loading="adminLoading" @click="fetchAdminTokenData">
+              <template #icon>
+                <n-icon><Refresh /></n-icon>
+              </template>
+              刷新数据
+            </n-button>
+          </div>
+        </div>
+
+        <n-collapse>
+          <n-collapse-item
+            v-for="item in adminUserTokenList"
+            :key="item.id"
+            :name="item.id"
+            :title="`${item.username} (${item.role || 'user'}) - ${item.tokens.length} 个Token`"
+          >
+            <n-space style="margin-bottom: 12px">
+              <n-button
+                type="primary"
+                size="small"
+                @click="enterUserWorkspace(item)"
+              >
+                进入该账号配置
+              </n-button>
+              <n-button
+                type="error"
+                size="small"
+                @click="clearUserTokensByAdmin(item)"
+              >
+                清空该账号 Token
+              </n-button>
+            </n-space>
+
+            <n-data-table
+              :columns="adminColumns"
+              :data="item.tokens"
+              :pagination="{ pageSize: 5 }"
+              :scroll-x="900"
+            />
+          </n-collapse-item>
+        </n-collapse>
+      </div>
     </div>
 
     <!-- 编辑Token模态框 -->
@@ -609,8 +685,10 @@ import singleBinTokenForm from "./singlebin.vue";
 import WxQrcodeForm from "./wxqrcode.vue";
 
 import { useTokenStore, selectedTokenId } from "@/stores/tokenStore";
+import { useAuthStore } from "@/stores/auth";
 import {
   Add,
+  ArrowBack,
   Copy,
   Create,
   EllipsisHorizontal,
@@ -625,11 +703,12 @@ import {
   TrashBin,
 } from "@vicons/ionicons5";
 import { NIcon, useDialog, useMessage } from "naive-ui";
-import { h, onMounted, reactive, ref, watch } from "vue";
+import { computed, h, onMounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { transformToken } from "@/utils/token";
 import useIndexedDB from "@/hooks/useIndexedDB";
 const { getArrayBuffer, storeArrayBuffer, deleteArrayBuffer, clearAll } = useIndexedDB();
+const API_BASE = import.meta.env.VITE_API_URL || "";
 // 接收路由参数
 const props = defineProps({
   token: String,
@@ -644,6 +723,9 @@ const router = useRouter();
 const message = useMessage();
 const dialog = useDialog();
 const tokenStore = useTokenStore();
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.userInfo?.role === "admin");
+const isAdminManagingUser = computed(() => !!tokenStore.adminManagedUser?.id);
 
 // 响应式数据
 const showImportForm = ref(false);
@@ -659,6 +741,138 @@ const connectingTokens = ref(new Set());
 // 从localStorage读取上次的视图模式，默认为列表视图
 const viewMode = ref(localStorage.getItem("tokenViewMode") || "list");
 const dragIndex = ref(null);
+const adminLoading = ref(false);
+const adminUsers = ref([]);
+const adminTokenMap = ref({});
+
+const adminColumns = [
+  { title: "名称", key: "name" },
+  { title: "服务器", key: "server" },
+  {
+    title: "Token",
+    key: "token",
+    render(row) {
+      return maskToken(row.token);
+    },
+  },
+  {
+    title: "导入方式",
+    key: "importMethod",
+    render(row) {
+      return row.importMethod || "manual";
+    },
+  },
+  {
+    title: "更新时间",
+    key: "updatedAt",
+    render(row) {
+      return row.updatedAt ? formatTime(row.updatedAt) : "-";
+    },
+  },
+];
+
+const adminUserTokenList = computed(() =>
+  adminUsers.value.map((user) => ({
+    ...user,
+    tokens: adminTokenMap.value[user.id] || [],
+  })),
+);
+
+const adminRequest = async (endpoint, options = {}) => {
+  const token = localStorage.getItem("token");
+  if (!token) return { success: false, message: "未登录" };
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    ...options.headers,
+  };
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+  });
+  return response.json();
+};
+
+const fetchAdminTokenData = async () => {
+  if (!isAdmin.value) return;
+  try {
+    adminLoading.value = true;
+    const [usersRes, tokensRes] = await Promise.all([
+      adminRequest("/api/admin/users"),
+      adminRequest("/api/admin/tokens"),
+    ]);
+    if (!usersRes.success) throw new Error(usersRes.message || "获取用户失败");
+    if (!tokensRes.success) throw new Error(tokensRes.message || "获取Token失败");
+    adminUsers.value = usersRes.data || [];
+    adminTokenMap.value = tokensRes.data || {};
+  } catch (error) {
+    console.error("管理员数据加载失败:", error);
+    message.error(error.message || "管理员数据加载失败");
+  } finally {
+    adminLoading.value = false;
+  }
+};
+
+const clearUserTokensByAdmin = (user) => {
+  dialog.warning({
+    title: "清空用户 Token",
+    content: `确定要清空账号 "${user.username}" 的所有Token吗？`,
+    positiveText: "确定清空",
+    negativeText: "取消",
+    onPositiveClick: async () => {
+      try {
+        const res = await adminRequest(`/api/admin/tokens/${encodeURIComponent(user.id)}`, {
+          method: "DELETE",
+        });
+        if (!res.success) {
+          throw new Error(res.message || "清空失败");
+        }
+        adminTokenMap.value[user.id] = [];
+        message.success(`已清空 ${user.username} 的Token`);
+      } catch (error) {
+        message.error(error.message || "清空失败");
+      }
+    },
+  });
+};
+
+const enterUserWorkspace = async (user) => {
+  try {
+    const ok = await tokenStore.enterAdminUserContext({
+      id: user.id,
+      username: user.username,
+    });
+    if (!ok) {
+      message.error("进入账号失败，请检查管理员权限");
+      return;
+    }
+
+    if (tokenStore.gameTokens.length === 0) {
+      message.warning(`账号 ${user.username} 暂无Token，可先添加`);
+      await router.push("/tokens");
+      return;
+    }
+
+    const firstToken = tokenStore.gameTokens[0];
+    tokenStore.selectToken(firstToken.id);
+    message.success(`已进入 ${user.username} 的配置空间`);
+    await router.push("/admin/dashboard");
+  } catch (error) {
+    console.error("进入账号配置失败:", error);
+    message.error(error?.message || "进入账号配置失败");
+  }
+};
+
+const exitAdminWorkspace = async () => {
+  try {
+    await tokenStore.exitAdminUserContext();
+    message.success("已返回管理员账号视图");
+    await fetchAdminTokenData();
+  } catch (error) {
+    console.error("退出管理员上下文失败:", error);
+    message.error("返回管理员视图失败");
+  }
+};
 
 // 备注编辑状态管理
 const editingRemark = ref(null); // 当前正在编辑备注的tokenId
@@ -1482,6 +1696,10 @@ const goToDashboard = () => {
   router.push("/admin/batch-daily-tasks");
 };
 
+const goBack = () => {
+  router.push("/admin/game-features");
+};
+
 // 开始任务管理 - 直接跳转到控制台
 const startTaskManagement = (token) => {
   // 选择token
@@ -1593,6 +1811,9 @@ onMounted(async () => {
   if (!tokenStore.hasTokens && !props.token && !props.api) {
     showImportForm.value = true;
   }
+  if (isAdmin.value) {
+    await fetchAdminTokenData();
+  }
 });
 </script>
 
@@ -1635,6 +1856,11 @@ onMounted(async () => {
   position: relative;
   width: 100%;
   justify-content: center;
+}
+
+.header-back {
+  position: absolute;
+  left: 0;
 }
 
 .theme-toggle {

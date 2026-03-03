@@ -6,7 +6,7 @@
         <div class="card-header">
           <div class="brand">
             <img src="/icons/xiaoyugan.png" alt="XYZW" class="brand-logo" />
-            <h1 class="brand-title">XYZW 游戏管理系统</h1>
+            <h1 class="brand-title">武夜管理系统</h1>
           </div>
           <p class="welcome-text">欢迎回来，请登录您的账户</p>
         </div>
@@ -74,38 +74,6 @@
             </n-button>
           </n-form>
 
-          <n-divider>
-            <span class="divider-text">其他登录方式</span>
-          </n-divider>
-
-          <div class="social-login">
-            <n-button
-              size="large"
-              class="social-button"
-              @click="handleSocialLogin('qq')"
-            >
-              <template #icon>
-                <n-icon>
-                  <PersonCircle />
-                </n-icon>
-              </template>
-              QQ登录
-            </n-button>
-
-            <n-button
-              size="large"
-              class="social-button"
-              @click="handleSocialLogin('wechat')"
-            >
-              <template #icon>
-                <n-icon>
-                  <PersonCircle />
-                </n-icon>
-              </template>
-              微信登录
-            </n-button>
-          </div>
-
           <div class="register-prompt">
             <span>还没有账户？</span>
             <n-button text type="primary" @click="router.push('/register')">
@@ -118,8 +86,7 @@
       <!-- 功能展示 -->
       <div class="features-showcase">
         <div class="showcase-header">
-          <h2>为什么选择 XYZW？</h2>
-          <p>专业的游戏管理平台，让游戏变得更轻松</p>
+          <p>选择武夜，选择成功</p>
         </div>
 
         <div class="features-list">

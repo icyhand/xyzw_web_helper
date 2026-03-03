@@ -1,0 +1,30 @@
+{
+  "user_admin": [
+    {
+      "id": "car_task_1772537053835",
+      "tokenId": "11d6bbb8b6c2433cf946adc1a1ddd0f9",
+      "name": "test1",
+      "taskType": "smartSend",
+      "runType": "daily",
+      "runTime": "06:00",
+      "cronExpression": "",
+      "helperId": "406203184",
+      "helperName": "夜✨小宇宙",
+      "enabled": false,
+      "createdAt": 1772537053835
+    },
+    {
+      "id": "car_task_1772537197556",
+      "tokenId": "11d6bbb8b6c2433cf946adc1a1ddd0f9",
+      "name": "收车",
+      "taskType": "claimCars",
+      "runType": "daily",
+      "runTime": "23:00",
+      "cronExpression": "",
+      "helperId": null,
+      "helperName": null,
+      "enabled": true,
+      "createdAt": 1772537197556
+    }
+  ]
+}

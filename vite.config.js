@@ -187,6 +187,20 @@ export default defineConfig(async () => {
             Referer: "https://open.weixin.qq.com/",
           },
         },
+        // 本地后端 API 代理（登录、注册、Token 等，需放在最后作为兜底）
+        "/api": {
+          target: "http://127.0.0.1:3100",
+          changeOrigin: true,
+        },
+      },
+    },
+    preview: {
+      allowedHosts: ["ginjin.com.cn", "www.ginjin.com.cn"],
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:3100",
+          changeOrigin: true,
+        },
       },
     },
     css: {

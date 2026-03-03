@@ -32,6 +32,7 @@ export function createTasksCar(deps) {
     isBigPrize,
     countRacingRefreshTickets,
     delayConfig,
+    loadSettings,
   } = deps;
 
   const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
@@ -162,6 +163,10 @@ export function createTasksCar(deps) {
           });
         }
 
+        // 获取该账号设置的指定护卫
+        const tokenSettings = loadSettings ? loadSettings(tokenId) : null;
+        const preferredHelperId = tokenSettings?.smartSendHelperId ? String(tokenSettings.smartSendHelperId) : null;
+
         // Helper function to assign guard
         const assignHelperIfNeeded = async (car) => {
           const color = Number(car.color || 0);
@@ -180,6 +185,27 @@ export function createTasksCar(deps) {
               type: "warning",
             });
             return;
+          }
+
+          // 若设置了指定护卫，优先使用
+          if (preferredHelperId) {
+            const used = Number(helperUsageMap[preferredHelperId] || 0);
+            if (used < 4) {
+              const preferredMember = sortedHelpers.find((h) => h.id === preferredHelperId);
+              car.helperId = preferredHelperId;
+              helperUsageMap[preferredHelperId] = used + 1;
+              addLog({
+                time: new Date().toLocaleTimeString(),
+                message: `${token.name} 车辆[${gradeLabel(car.color)}]使用指定护卫: ${preferredMember?.name || preferredHelperId} (已助战: ${used + 1}/4)`,
+                type: "success",
+              });
+              return;
+            }
+            addLog({
+              time: new Date().toLocaleTimeString(),
+              message: `${token.name} 指定护卫已达使用上限(4次)，将自动分配其他护卫`,
+              type: "warning",
+            });
           }
 
           // Find best available helper

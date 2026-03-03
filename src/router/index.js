@@ -88,7 +88,8 @@ const my_routes = [
         component: () => import('@/views/DailyTasks.vue'),
         meta: {
           title: '日常任务',
-          requiresToken: true
+          requiresToken: true,
+          adminOnly: true,
         }
       },
       {
@@ -97,7 +98,7 @@ const my_routes = [
         component: () => import('@/views/BatchDailyTasks.vue'),
         meta: {
           title: '批量日常',
-          requiresToken: true
+          requiresToken: true,
         }
       },
       // 增加自动路由引用
@@ -116,11 +117,21 @@ const my_routes = [
   // 兼容旧路由，重定向到新的token管理页面
   {
     path: '/login',
-    redirect: '/tokens'
+    name: 'Login',
+    component: () => import('@/views/Login.vue'),
+    meta: {
+      title: '登录',
+      requiresToken: false,
+    },
   },
   {
     path: '/register',
-    redirect: '/tokens'
+    name: 'Register',
+    component: () => import('@/views/Register.vue'),
+    meta: {
+      title: '注册',
+      requiresToken: false,
+    },
   },
   {
     path: '/game-roles',
@@ -156,6 +167,13 @@ autoRoutes.handleHotUpdate?.(router);
 // 导航守卫
 router.beforeEach((to, from, next) => {
   const tokenStore = useTokenStore()
+  let currentUser = null
+  try {
+    currentUser = JSON.parse(localStorage.getItem('user') || 'null')
+  } catch {
+    currentUser = null
+  }
+  const isAdmin = currentUser?.role === 'admin'
 
   // 设置页面标题
   document.title = to.meta.title ? `${to.meta.title} - XYZW 游戏管理系统` : 'XYZW 游戏管理系统'
@@ -175,6 +193,8 @@ router.beforeEach((to, from, next) => {
     } else {
       next('/tokens')
     }
+  } else if (to.meta.adminOnly && !isAdmin) {
+    next('/admin/dashboard')
   } else {
     next()
   }

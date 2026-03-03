@@ -5,9 +5,9 @@
         <div class="card-header">
           <div class="brand">
             <img src="/icons/xiaoyugan.png" alt="XYZW" class="brand-logo" />
-            <h1 class="brand-title">注册 XYZW 账户</h1>
+            <h1 class="brand-title">注册账户</h1>
           </div>
-          <p class="welcome-text">加入我们，开始您的游戏管理之旅</p>
+          <p class="welcome-text">选择武夜，选择成功</p>
         </div>
 
         <div class="card-body">

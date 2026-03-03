@@ -63,6 +63,16 @@
             </template>
             一键收车
           </n-button>
+          <n-button
+            size="small"
+            secondary
+            @click="openScheduleModal"
+          >
+            <template #icon>
+              <n-icon><Time /></n-icon>
+            </template>
+            定时任务
+          </n-button>
         </n-space>
       </template>
     </n-thing>
@@ -177,6 +187,138 @@
     </div>
   </n-card>
 
+  <!-- 定时任务弹窗 -->
+  <n-modal
+    v-model:show="scheduleModalVisible"
+    preset="card"
+    :title="`疯狂赛车定时任务 - ${tokenStore.selectedToken?.name || '当前账号'}`"
+    style="width: 700px"
+  >
+    <div class="schedule-content">
+      <!-- 已有的定时任务列表 -->
+      <div v-if="displayedCarScheduledTasks.length > 0" style="margin-bottom: 24px;">
+        <n-divider title-placement="left" style="margin: 0 0 12px 0">已设置的定时任务</n-divider>
+        <div class="scheduled-tasks-list">
+          <div
+            v-for="task in displayedCarScheduledTasks"
+            :key="task.id"
+            class="scheduled-task-item"
+          >
+            <div class="task-info">
+              <div class="task-name">{{ task.name }}</div>
+              <div class="task-time">
+                <n-tag size="small" :type="task.taskType === 'smartSend' ? 'success' : 'info'">
+                  {{ task.taskType === 'smartSend' ? '智能发车' : '一键收车' }}
+                </n-tag>
+                <span style="margin-left: 8px;">
+                  {{ task.runType === 'daily' ? `每天 ${task.runTime}` : task.cronExpression }}
+                </span>
+                <n-tag v-if="task.taskType === 'smartSend' && task.helperId" size="small" type="warning" style="margin-left: 8px;">
+                  护卫: {{ task.helperName || getHelperName(task.helperId) || task.helperId }}
+                </n-tag>
+              </div>
+            </div>
+            <div class="task-actions">
+              <n-switch
+                :value="task.enabled"
+                @update:value="(val) => toggleCarTaskEnabled(task.id, val)"
+                size="small"
+              />
+              <n-button
+                size="tiny"
+                type="error"
+                quaternary
+                @click="deleteCarTask(task.id)"
+              >
+                删除
+              </n-button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 新增定时任务表单 -->
+      <n-divider title-placement="left" style="margin: 0 0 12px 0">新增定时任务</n-divider>
+      <div class="schedule-form">
+        <div class="form-item">
+          <label class="form-label">任务名称</label>
+          <n-input
+            v-model:value="scheduleForm.name"
+            placeholder="输入任务名称"
+            style="width: 200px;"
+          />
+        </div>
+        <div class="form-item">
+          <label class="form-label">任务类型</label>
+          <n-radio-group v-model:value="scheduleForm.taskType">
+            <n-radio value="smartSend">智能发车</n-radio>
+            <n-radio value="claimCars">一键收车</n-radio>
+          </n-radio-group>
+        </div>
+        <div class="form-item" v-if="scheduleForm.taskType === 'smartSend'">
+          <label class="form-label">指定护卫</label>
+          <n-select
+            v-model:value="scheduleForm.helperId"
+            :options="scheduleHelperOptions"
+            placeholder="不指定则自动分配"
+            clearable
+            filterable
+            :loading="scheduleHelperLoading"
+            style="width: 280px;"
+          />
+          <span v-if="!isConnected" class="form-hint">需先连接以加载护卫列表</span>
+        </div>
+        <div class="form-item">
+          <label class="form-label">运行类型</label>
+          <n-radio-group v-model:value="scheduleForm.runType">
+            <n-radio value="daily">每天固定时间</n-radio>
+            <n-radio value="cron">Cron表达式</n-radio>
+          </n-radio-group>
+        </div>
+        <div class="form-item" v-if="scheduleForm.runType === 'daily'">
+          <label class="form-label">运行时间</label>
+          <n-time-picker
+            v-model:value="scheduleForm.runTime"
+            format="HH:mm"
+            style="width: 120px;"
+          />
+        </div>
+        <div class="form-item" v-if="scheduleForm.runType === 'cron'">
+          <label class="form-label">Cron表达式</label>
+          <n-input
+            v-model:value="scheduleForm.cronExpression"
+            placeholder="如: 0 10 * * 1-3 (周一至周三10点)"
+            style="width: 280px;"
+            @input="validateCron"
+          />
+          <div v-if="scheduleForm.cronExpression" style="margin-top: 8px;">
+            <n-text v-if="cronValid" type="success" style="font-size: 12px;">
+              ✓ Cron表达式有效
+            </n-text>
+            <n-text v-else type="error" style="font-size: 12px;">
+              ✗ {{ cronErrorMsg }}
+            </n-text>
+          </div>
+        </div>
+      </div>
+      <div class="tips" style="margin-top: 16px;">
+        <n-text depth="3" style="font-size: 12px;">
+          提示：定时任务按账号隔离，每个账号的定时任务独立存储、独立执行，互不影响。<br/>
+          疯狂赛车活动仅在周一至周三开放，建议设置对应时间的定时任务。<br/>
+          Cron表达式示例：<br/>
+          - 0 10 * * 1-3 (周一至周三每天10:00)<br/>
+          - 30 14 * * 1,2,3 (周一、二、三每天14:30)
+        </n-text>
+      </div>
+    </div>
+    <template #footer>
+      <n-space justify="end">
+        <n-button @click="scheduleModalVisible = false">取消</n-button>
+        <n-button type="primary" @click="saveCarSchedule">保存任务</n-button>
+      </n-space>
+    </template>
+  </n-modal>
+
   <!-- 护卫选择弹窗 -->
   <n-modal
     v-model:show="helperDialogVisible"
@@ -209,10 +351,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { useMessage, NCard, NThing, NAvatar, NSpace, NButton, NTag, NGrid, NGi, NIcon, NModal, NSelect, NSpin, NEmpty, NStatistic } from "naive-ui";
+import { ref, computed, watch, onMounted, onUnmounted, reactive } from "vue";
+import { useMessage, NCard, NThing, NAvatar, NSpace, NButton, NTag, NGrid, NGi, NIcon, NModal, NSelect, NSpin, NEmpty, NStatistic, NInput, NRadioGroup, NRadio, NTimePicker, NSwitch, NDivider, NText } from "naive-ui";
+import { validateCronExpression, matchesCronExpression } from "@/utils/batch/cronUtils.js";
 import { useTokenStore } from "@/stores/tokenStore";
-import { CarSport, Refresh, Flash, ArrowUpCircle, Person, Ticket } from "@vicons/ionicons5";
+import { CarSport, Refresh, Flash, ArrowUpCircle, Person, Ticket, Time } from "@vicons/ionicons5";
 
 const tokenStore = useTokenStore();
 const message = useMessage();
@@ -229,9 +372,15 @@ onMounted(() => {
   nowTimer = setInterval(() => {
     nowTs.value = Date.now();
   }, 60000);
+  scheduleTimer = setInterval(checkAndExecuteScheduledTasks, 60000);
+  checkAndExecuteScheduledTasks();
 });
 onUnmounted(() => {
   if (nowTimer) clearInterval(nowTimer);
+  if (scheduleTimer) {
+    clearInterval(scheduleTimer);
+    scheduleTimer = null;
+  }
 });
 const isAfter20 = computed(() => {
   const d = new Date(nowTs.value);
@@ -912,7 +1061,7 @@ const smartSendCar = async () => {
       // 忽略护卫获取失败，降级为不带护卫发车
     }
 
-    // 自动分配护卫函数
+    // 自动分配护卫函数（支持定时任务指定护卫）
     const assignHelperIfNeeded = async (car) => {
       const color = Number(car.color || 0);
       // 仅红(5)及以上需要护卫
@@ -922,6 +1071,22 @@ const smartSendCar = async () => {
 
       // 每次分配前刷新护卫状态，避免并发导致的使用次数超标
       await updateHelperUsage();
+
+      // 定时任务指定了护卫时优先使用
+      const preferredId = scheduledTaskPreferredHelperId.value;
+      if (preferredId) {
+        const used = Number(helperUsageMap[preferredId] || 0);
+        if (used < 4) {
+          const preferredMember = sortedHelpers.find((h) => h.id === preferredId);
+          car.helperId = preferredId;
+          helperUsageMap[preferredId] = used + 1;
+          message.success(
+            `已使用指定护卫：${preferredMember?.name || preferredId} (已助战: ${used + 1}/4)`,
+          );
+          return;
+        }
+        message.warning(`指定护卫已达使用上限(4次)，将自动分配其他护卫`);
+      }
 
       // 寻找可用护卫
       const bestHelper = sortedHelpers.find((h) => {
@@ -1116,6 +1281,268 @@ const confirmHelper = () => {
 const cancelHelper = () => {
   helperDialogVisible.value = false;
 };
+
+// ===== 定时任务功能 =====
+const scheduleModalVisible = ref(false);
+const carScheduledTasks = ref([]);
+const scheduleForm = reactive({
+  name: "",
+  taskType: "smartSend",
+  runType: "daily",
+  runTime: null,
+  cronExpression: "",
+  helperId: null,
+});
+const scheduleHelperOptions = ref([]);
+const scheduleHelperLoading = ref(false);
+const cronValid = ref(true);
+const cronErrorMsg = ref("");
+
+const CAR_SCHEDULE_KEY_PREFIX = "carScheduledTasks_";
+const CAR_SCHEDULE_KEY_LEGACY = "carScheduledTasks";
+
+const getScheduleStorageKey = (tokenId) => tokenId ? `${CAR_SCHEDULE_KEY_PREFIX}${tokenId}` : null;
+
+const loadCarScheduledTasks = (tokenId) => {
+  const key = getScheduleStorageKey(tokenId);
+  if (!key) {
+    carScheduledTasks.value = [];
+    return;
+  }
+  try {
+    let saved = localStorage.getItem(key);
+    if (!saved && tokenId) {
+      const legacy = localStorage.getItem(CAR_SCHEDULE_KEY_LEGACY);
+      if (legacy) {
+        try {
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const migrated = parsed.map((t) => ({ ...t, tokenId }));
+            localStorage.setItem(key, JSON.stringify(migrated));
+            localStorage.removeItem(CAR_SCHEDULE_KEY_LEGACY);
+            carScheduledTasks.value = migrated;
+            return;
+          }
+        } catch (_) {}
+      }
+    }
+    if (saved) {
+      carScheduledTasks.value = JSON.parse(saved);
+    } else {
+      carScheduledTasks.value = [];
+    }
+  } catch (e) {
+    console.error("加载定时任务失败:", e);
+    carScheduledTasks.value = [];
+  }
+};
+
+const saveCarScheduledTasks = (tokenId) => {
+  const key = getScheduleStorageKey(tokenId);
+  if (key) {
+    try {
+      localStorage.setItem(key, JSON.stringify(carScheduledTasks.value));
+    } catch (e) {
+      console.error("保存定时任务失败:", e);
+    }
+  }
+};
+
+const loadScheduleHelperOptions = async () => {
+  const token = tokenStore.selectedToken;
+  if (!token || !isConnected.value) {
+    scheduleHelperOptions.value = [];
+    return;
+  }
+  scheduleHelperLoading.value = true;
+  try {
+    const [usageRes, legionRes] = await Promise.all([
+      tokenStore.sendMessageWithPromise(token.id, "car_getmemberhelpingcnt", {}, 5000),
+      tokenStore.sendMessageWithPromise(token.id, "legion_getinfo", {}, 5000),
+    ]);
+    const usageMap = usageRes?.body?.memberHelpingCntMap || usageRes?.memberHelpingCntMap || {};
+    const membersMap = legionRes?.body?.info?.members || legionRes?.info?.members || {};
+    const members = Object.values(membersMap || {});
+    const roleId = tokenStore.gameData?.roleInfo?.role?.roleId;
+    const opts = members
+      .filter((m) => !roleId || String(m.roleId) !== String(roleId))
+      .map((m) => {
+        const mid = String(m.roleId);
+        const cnt = Number(usageMap[mid] ?? 0);
+        const name = m.name || m.nickname || mid;
+        return {
+          label: `${name}（已护卫 ${cnt}/4）`,
+          value: mid,
+          memberName: name,
+          disabled: cnt >= 4,
+        };
+      });
+    scheduleHelperOptions.value = opts;
+  } catch (e) {
+    scheduleHelperOptions.value = [];
+  } finally {
+    scheduleHelperLoading.value = false;
+  }
+};
+
+const displayedCarScheduledTasks = computed(() => {
+  const token = tokenStore.selectedToken;
+  if (!token) return carScheduledTasks.value;
+  return carScheduledTasks.value.filter((t) => !t.tokenId || t.tokenId === token.id);
+});
+
+let scheduleTimer = null;
+
+const checkAndExecuteScheduledTasks = () => {
+  const token = tokenStore.selectedToken;
+  if (!token || !isConnected.value) return;
+  const tasks = carScheduledTasks.value.filter(
+    (t) => t.enabled && (!t.tokenId || t.tokenId === token.id),
+  );
+  const now = new Date();
+  for (const task of tasks) {
+    let shouldRun = false;
+    if (task.runType === "daily" && task.runTime) {
+      const [h, m] = String(task.runTime).split(":").map(Number);
+      if (now.getHours() === h && now.getMinutes() === m) shouldRun = true;
+    } else if (task.runType === "cron" && task.cronExpression) {
+      shouldRun = matchesCronExpression(task.cronExpression, now);
+    }
+    if (shouldRun) {
+      scheduledTaskPreferredHelperId.value = task.helperId || null;
+      if (task.taskType === "smartSend") {
+        smartSendCar();
+      } else {
+        claimAllCars();
+      }
+      scheduledTaskPreferredHelperId.value = null;
+    }
+  }
+};
+
+const openScheduleModal = () => {
+  const token = tokenStore.selectedToken;
+  if (!token) {
+    message.warning("请先选择账号");
+    return;
+  }
+  loadCarScheduledTasks(token.id);
+  Object.assign(scheduleForm, {
+    name: "",
+    taskType: "smartSend",
+    runType: "daily",
+    runTime: null,
+    cronExpression: "",
+    helperId: null,
+  });
+  cronValid.value = true;
+  cronErrorMsg.value = "";
+  scheduleModalVisible.value = true;
+  loadScheduleHelperOptions();
+};
+
+const validateCron = () => {
+  if (!scheduleForm.cronExpression) {
+    cronValid.value = true;
+    cronErrorMsg.value = "";
+    return;
+  }
+  const result = validateCronExpression(scheduleForm.cronExpression);
+  cronValid.value = result.valid;
+  cronErrorMsg.value = result.message || "";
+};
+
+const saveCarSchedule = () => {
+  const token = tokenStore.selectedToken;
+  if (!token) {
+    message.warning("请先选择账号");
+    return;
+  }
+  if (!scheduleForm.name) {
+    message.warning("请输入任务名称");
+    return;
+  }
+  if (scheduleForm.runType === "daily" && !scheduleForm.runTime) {
+    message.warning("请选择运行时间");
+    return;
+  }
+  if (scheduleForm.runType === "cron") {
+    if (!scheduleForm.cronExpression) {
+      message.warning("请输入Cron表达式");
+      return;
+    }
+    const result = validateCronExpression(scheduleForm.cronExpression);
+    if (!result.valid) {
+      message.warning(result.message);
+      return;
+    }
+  }
+
+  let formattedRunTime = null;
+  if (scheduleForm.runType === "daily" && scheduleForm.runTime) {
+    const time = new Date(scheduleForm.runTime);
+    formattedRunTime = time.toLocaleTimeString("zh-CN", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  const helperId = scheduleForm.taskType === "smartSend" && scheduleForm.helperId ? String(scheduleForm.helperId) : null;
+  const helperOpt = scheduleHelperOptions.value.find((o) => o.value === helperId);
+  const helperName = helperOpt?.memberName || (helperOpt ? helperOpt.label.replace(/（已护卫.*$/, "").trim() : null);
+  const taskData = {
+    id: "car_task_" + Date.now(),
+    tokenId: token.id,
+    name: scheduleForm.name,
+    taskType: scheduleForm.taskType,
+    runType: scheduleForm.runType,
+    runTime: formattedRunTime,
+    cronExpression: scheduleForm.runType === "cron" ? scheduleForm.cronExpression : "",
+    helperId,
+    helperName,
+    enabled: true,
+    createdAt: Date.now(),
+  };
+
+  carScheduledTasks.value.push(taskData);
+  saveCarScheduledTasks(token.id);
+
+  Object.assign(scheduleForm, {
+    name: "",
+    taskType: "smartSend",
+    runType: "daily",
+    runTime: null,
+    cronExpression: "",
+    helperId: null,
+  });
+  
+  message.success("定时任务已保存");
+};
+
+const toggleCarTaskEnabled = (taskId, enabled) => {
+  const token = tokenStore.selectedToken;
+  if (!token) return;
+  const task = carScheduledTasks.value.find((t) => t.id === taskId);
+  if (task) {
+    task.enabled = enabled;
+    saveCarScheduledTasks(token.id);
+    message.success(`定时任务已${enabled ? "启用" : "禁用"}`);
+  }
+};
+
+const deleteCarTask = (taskId) => {
+  const token = tokenStore.selectedToken;
+  if (!token) return;
+  carScheduledTasks.value = carScheduledTasks.value.filter((t) => t.id !== taskId);
+  saveCarScheduledTasks(token.id);
+  message.success("定时任务已删除");
+};
+
+// 定时任务执行时指定的护卫（由调度器设置）
+const scheduledTaskPreferredHelperId = ref(null);
+
+// 定时任务：前端定时检查，需保持俱乐部 tab 可见（v-show 确保组件不被卸载）
 </script>
 
 <style scoped lang="scss">
@@ -1231,6 +1658,72 @@ const cancelHelper = () => {
   font-size: 12px;
   color: var(--text-tertiary);
   margin-top: 8px;
+}
+
+.schedule-content {
+  padding: 8px 0;
+}
+
+.scheduled-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scheduled-task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+}
+
+.task-info {
+  flex: 1;
+}
+
+.task-name {
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.task-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.task-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.schedule-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.form-label {
+  min-width: 80px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.form-hint {
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 :deep(.n-select) {

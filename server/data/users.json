@@ -1,0 +1,20 @@
+{
+  "bianjin": {
+    "id": "user_1772338267012_c54c8d54",
+    "username": "bianjin",
+    "passwordHash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "createdAt": "2026-03-01T04:11:07.012Z",
+    "sessionToken": "b0dd85df9f2ec12896b03edccc9e1f706f16b641d9f77d49087d2746fa9083a3",
+    "lastLoginAt": "2026-03-03T11:43:01.165Z",
+    "role": "user"
+  },
+  "admin": {
+    "id": "user_admin",
+    "username": "admin",
+    "passwordHash": "eeadec4dcde5834f855789270784d1f808c5c493f7185efc733e8aa218e86b08",
+    "createdAt": "2026-03-01T04:25:38.129Z",
+    "sessionToken": "1867604be4dca8f000b0cc40cf5fda205a56dcd5e086b4fd332ccabb86bf3d53",
+    "role": "admin",
+    "lastLoginAt": "2026-03-03T11:33:14.251Z"
+  }
+}

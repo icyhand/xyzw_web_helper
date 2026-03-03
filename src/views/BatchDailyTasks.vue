@@ -739,6 +739,21 @@
               ><n-switch v-model:value="currentSettings.payRecruit" />
             </div>
           </div>
+          <div class="setting-item" style="margin-top: 12px;">
+            <label class="setting-label">智能发车指定护卫</label>
+            <n-select
+              v-model:value="currentSettings.smartSendHelperId"
+              :options="settingsHelperOptions"
+              placeholder="不指定则自动分配"
+              clearable
+              filterable
+              :loading="settingsHelperLoading"
+              size="small"
+              style="width: 100%"
+            />
+            <span v-if="settingsHelperLoading" class="form-hint" style="margin-left: 8px;">加载中...</span>
+            <span v-else-if="settingsHelperOptions.length === 0" class="form-hint" style="margin-left: 8px;">需先连接账号后可加载护卫列表</span>
+          </div>
         </div>
         <div class="modal-actions" style="margin-top: 20px; text-align: right">
           <n-button type="primary" @click="saveSettings">保存设置</n-button>
@@ -2479,6 +2494,8 @@ const groupColors = [
 const showSettingsModal = ref(false);
 const currentSettingsTokenId = ref(null);
 const currentSettingsTokenName = ref("");
+const settingsHelperOptions = ref([]);
+const settingsHelperLoading = ref(false);
 const currentSettings = reactive({
   arenaFormation: 1,
   towerFormation: 1,
@@ -2491,6 +2508,7 @@ const currentSettings = reactive({
   claimHangUp: true,
   claimEmail: true,
   blackMarketPurchase: true,
+  smartSendHelperId: null, // 智能发车指定护卫，null 为自动分配
 });
 
 // Task Template State
@@ -2515,6 +2533,7 @@ const currentTemplate = reactive({
   claimHangUp: true,
   claimEmail: true,
   blackMarketPurchase: true,
+  smartSendHelperId: null,
 });
 
 // Account Template References
@@ -4092,23 +4111,42 @@ const clearAllItems = () => {
 const loadSettings = (tokenId) => {
   try {
     const raw = localStorage.getItem(`daily-settings:${tokenId}`);
-    const defaultSettings = {
-      arenaFormation: 1,
-      towerFormation: 1,
-      bossFormation: 1,
-      bossTimes: 2,
-      claimBottle: true,
-      payRecruit: true,
-      openBox: true,
-      arenaEnable: true,
-      claimHangUp: true,
-      claimEmail: true,
-      blackMarketPurchase: true,
-    };
-    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : defaultSettings;
+    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : { ...defaultSettings };
   } catch (error) {
     console.error("Failed to load settings:", error);
     return null;
+  }
+};
+
+const loadSettingsHelperOptions = async (tokenId) => {
+  settingsHelperLoading.value = true;
+  settingsHelperOptions.value = [];
+  try {
+    await ensureConnection(tokenId);
+    const [usageRes, legionRes] = await Promise.all([
+      tokenStore.sendMessageWithPromise(tokenId, "car_getmemberhelpingcnt", {}, 5000),
+      tokenStore.sendMessageWithPromise(tokenId, "legion_getinfo", {}, 5000),
+    ]);
+    const usageMap = usageRes?.body?.memberHelpingCntMap || usageRes?.memberHelpingCntMap || {};
+    const membersMap = legionRes?.body?.info?.members || legionRes?.info?.members || {};
+    const members = Object.values(membersMap || {});
+    const roleId = tokenStore.gameData?.roleInfo?.role?.roleId;
+    const opts = members
+      .filter((m) => !roleId || String(m.roleId) !== String(roleId))
+      .map((m) => {
+        const mid = String(m.roleId);
+        const cnt = Number(usageMap[mid] ?? 0);
+        const name = m.name || m.nickname || mid;
+        return {
+          label: `${name}（已护卫 ${cnt}/4）`,
+          value: mid,
+        };
+      });
+    settingsHelperOptions.value = opts;
+  } catch (e) {
+    settingsHelperOptions.value = [];
+  } finally {
+    settingsHelperLoading.value = false;
   }
 };
 
@@ -4118,6 +4156,7 @@ const openSettings = (token) => {
   const saved = loadSettings(token.id);
   Object.assign(currentSettings, saved);
   showSettingsModal.value = true;
+  loadSettingsHelperOptions(token.id);
 };
 
 const saveSettings = () => {
@@ -4148,6 +4187,7 @@ const openTaskTemplateModal = () => {
     claimHangUp: true,
     claimEmail: true,
     blackMarketPurchase: true,
+    smartSendHelperId: null,
   });
   currentTemplateName.value = "";
   showTaskTemplateModal.value = true;
@@ -4296,6 +4336,7 @@ const resetTemplateForm = () => {
     claimHangUp: true,
     claimEmail: true,
     blackMarketPurchase: true,
+    smartSendHelperId: null,
   });
 };
 

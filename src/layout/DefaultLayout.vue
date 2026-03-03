@@ -34,7 +34,12 @@
             </n-icon>
             <span>游戏功能</span>
           </router-link>
-          <router-link to="/tokens" class="nav-item" active-class="active">
+          <router-link
+            v-if="isAdmin"
+            to="/tokens"
+            class="nav-item"
+            active-class="active"
+          >
             <n-icon>
               <PersonCircle />
             </n-icon>
@@ -51,6 +56,7 @@
             <span>批量日常</span>
           </router-link>
           <router-link
+            v-if="isAdmin"
             to="/admin/message-test"
             class="nav-item"
             active-class="active"
@@ -117,6 +123,7 @@
           <span>游戏功能</span>
         </router-link>
         <router-link
+          v-if="isAdmin"
           to="/tokens"
           class="drawer-item"
           @click="isMobileMenuOpen = false"
@@ -127,6 +134,7 @@
           <span>Token管理</span>
         </router-link>
         <router-link
+          v-if="isAdmin"
           to="/admin/daily-tasks"
           class="drawer-item"
           @click="isMobileMenuOpen = false"
@@ -147,6 +155,7 @@
           <span>批量日常</span>
         </router-link>
         <router-link
+          v-if="isAdmin"
           to="/admin/message-test"
           class="drawer-item"
           @click="isMobileMenuOpen = false"
@@ -182,9 +191,7 @@
 
 <script setup>
 import {
-  useTokenStore,
   selectedToken,
-  selectedTokenId,
 } from "@/stores/tokenStore";
 import ThemeToggle from "@/components/Common/ThemeToggle.vue";
 import {
@@ -201,18 +208,20 @@ import {
 
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { isNowInLegionWarTime } from '@/utils/clubBattleUtils'
+import { useAuthStore } from "@/stores/auth";
 
-const tokenStore = useTokenStore();
+const authStore = useAuthStore();
 const router = useRouter();
 const message = useMessage();
+const isAdmin = computed(() => authStore.userInfo?.role === "admin");
 
 const isMobileMenuOpen = ref(false);
 
 const userMenuOptions = [
   {
-    label: "清除所有Token并退出",
+    label: "退出登录",
     key: "logout",
   },
 ];
@@ -221,9 +230,9 @@ const userMenuOptions = [
 const handleUserAction = async (key) => {
   switch (key) {
     case "logout":
-      await tokenStore.clearAllTokens();
-      message.success("已清除所有Token");
-      router.push("/tokens");
+      await authStore.logout();
+      message.success("已退出登录");
+      router.push("/login");
       break;
   }
 };

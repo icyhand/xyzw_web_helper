@@ -123,6 +123,7 @@ export const defaultSettings = {
   claimHangUp: true,
   claimEmail: true,
   blackMarketPurchase: true,
+  smartSendHelperId: null, // 智能发车指定护卫，null 为自动分配
 };
 
 // 默认批量设置
@@ -164,6 +165,7 @@ export const defaultTemplate = {
   claimHangUp: true,
   claimEmail: true,
   blackMarketPurchase: true,
+  smartSendHelperId: null,
 };
 
 // 默认任务表单

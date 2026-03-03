@@ -27,26 +27,6 @@
           </div>
         </section>
 
-        <!-- 快速操作 -->
-        <section class="quick-actions-section">
-          <h2 class="section-title">快速操作</h2>
-          <div class="actions-grid">
-            <div
-              v-for="action in quickActions"
-              :key="action.id"
-              class="action-card"
-              @click="handleQuickAction(action)"
-            >
-              <div class="action-icon">
-                <component :is="action.icon" />
-              </div>
-              <div class="action-content">
-                <h3>{{ action.title }}</h3>
-                <p>{{ action.description }}</p>
-              </div>
-            </div>
-          </div>
-        </section>
       </div>
     </main>
   </div>
@@ -59,13 +39,6 @@ import { useMessage } from "naive-ui";
 import { useTokenStore } from "@/stores/tokenStore";
 import {
   PersonCircle,
-  Cube,
-  Settings,
-  CheckmarkCircle,
-  Time,
-  TrendingUp,
-  Add,
-  Cloud,
 } from "@vicons/ionicons5";
 
 const router = useRouter();
@@ -85,37 +58,6 @@ const currentDate = computed(() => {
   });
 });
 
-const quickActions = ref([
-  {
-    id: 1,
-    icon: Cube,
-    title: "游戏功能",
-    description: "访问所有游戏功能模块",
-    action: "game-features",
-  },
-  {
-    id: 2,
-    icon: Add,
-    title: "添加Token",
-    description: "快速添加新的游戏Token",
-    action: "add-token",
-  },
-  {
-    id: 3,
-    icon: CheckmarkCircle,
-    title: "批量任务",
-    description: "批量执行任务",
-    action: "batch-daily-tasks",
-  },
-  {
-    id: 4,
-    icon: Cloud,
-    title: "WebSocket测试",
-    description: "测试WebSocket连接和游戏命令",
-    action: "websocket-test",
-  },
-]);
-
 const handleManageTokens = () => {
   // 降噪
   /* 当前Token状态:
@@ -130,29 +72,6 @@ const handleManageTokens = () => {
   } catch (error) {
     console.error("❌ 导航失败:", error);
     message.error("导航到Token管理页面失败");
-  }
-};
-
-const handleQuickAction = (action) => {
-  switch (action.action) {
-    case "game-features":
-      router.push("/admin/game-features");
-      break;
-    case "add-token":
-      handleManageTokens();
-      break;
-    case "execute-tasks":
-      router.push("/admin/game-features");
-      break;
-    case "websocket-test":
-      router.push("/websocket-test");
-      break;
-    case "open-settings":
-      router.push("/admin/profile");
-      break;
-    case "batch-daily-tasks":
-      router.push("/admin/batch-daily-tasks");
-      break;
   }
 };
 

@@ -13,6 +13,7 @@ import { emitPlus } from "./events/index.js";
 import router from "@/router";
 
 const { getArrayBuffer, storeArrayBuffer, deleteArrayBuffer, clearAll } = useIndexedDB();
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 declare interface TokenData {
   id: string;
@@ -84,6 +85,110 @@ export const tokenGroups = useLocalStorage<TokenGroup[]>("tokenGroups", []);
 export const useTokenStore = defineStore("tokens", () => {
   const wsConnections = ref<WebCtx>({}); // WebSocket连接状态
   const connectionLocks = ref<LockCtx>({}); // 连接操作锁，防止竞态条件
+  const adminManagedUser = ref<{ id: string; username: string } | null>(null);
+  let syncTimer: number | null = null;
+  let isSyncingFromServer = false;
+
+  const hasAuthToken = () => !!localStorage.getItem("token");
+  const getCurrentUser = () => {
+    try {
+      const raw = localStorage.getItem("user");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+  const isAdminUser = () => getCurrentUser()?.role === "admin";
+  const getSyncTargetUserId = () =>
+    isAdminUser() && adminManagedUser.value?.id ? adminManagedUser.value.id : null;
+
+  const tokenApiRequest = async (endpoint: string, options: RequestInit = {}) => {
+    const authToken = localStorage.getItem("token");
+    if (!authToken) {
+      return { success: false, message: "未登录" };
+    }
+
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+      ...(options.headers as Record<string, string>),
+    };
+
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+      });
+      return await response.json();
+    } catch (error: any) {
+      tokenLogger.warn("Token 云同步请求失败:", error?.message || error);
+      return { success: false, message: "网络请求失败" };
+    }
+  };
+
+  const syncTokensToServer = async () => {
+    if (!hasAuthToken() || isSyncingFromServer) return false;
+    const targetUserId = getSyncTargetUserId();
+    const result = targetUserId
+      ? await tokenApiRequest(`/api/admin/tokens/${encodeURIComponent(targetUserId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ tokens: gameTokens.value }),
+      })
+      : await tokenApiRequest("/api/tokens", {
+        method: "POST",
+        body: JSON.stringify({ tokens: gameTokens.value }),
+      });
+    return !!result?.success;
+  };
+
+  const scheduleTokenSync = () => {
+    if (!hasAuthToken() || isSyncingFromServer) return;
+    if (syncTimer) {
+      window.clearTimeout(syncTimer);
+    }
+    syncTimer = window.setTimeout(() => {
+      void syncTokensToServer();
+      syncTimer = null;
+    }, 300);
+  };
+
+  const syncTokensFromServer = async () => {
+    if (!hasAuthToken()) return false;
+    isSyncingFromServer = true;
+    try {
+      const targetUserId = getSyncTargetUserId();
+      const result = targetUserId
+        ? await tokenApiRequest(`/api/admin/tokens/${encodeURIComponent(targetUserId)}`)
+        : await tokenApiRequest("/api/tokens");
+      if (!result?.success || !Array.isArray(result.data)) {
+        return false;
+      }
+
+      gameTokens.value = result.data;
+      if (
+        selectedTokenId.value
+        && !gameTokens.value.some((token) => token.id === selectedTokenId.value)
+      ) {
+        selectedTokenId.value = "";
+      }
+      return true;
+    } finally {
+      isSyncingFromServer = false;
+    }
+  };
+
+  const enterAdminUserContext = async (user: { id: string; username: string }) => {
+    if (!isAdminUser() || !user?.id) return false;
+    adminManagedUser.value = { id: user.id, username: user.username };
+    selectedTokenId.value = "";
+    return await syncTokensFromServer();
+  };
+
+  const exitAdminUserContext = async () => {
+    adminManagedUser.value = null;
+    selectedTokenId.value = "";
+    return await syncTokensFromServer();
+  };
 
   // 游戏数据存储
   const gameData = ref({
@@ -220,6 +325,7 @@ export const useTokenStore = defineStore("tokens", () => {
     };
 
     gameTokens.value.push(newToken);
+    scheduleTokenSync();
     return newToken;
   };
 
@@ -231,6 +337,7 @@ export const useTokenStore = defineStore("tokens", () => {
         ...updates,
         updatedAt: new Date().toISOString(),
       };
+      scheduleTokenSync();
       return true;
     }
     return false;
@@ -250,7 +357,10 @@ export const useTokenStore = defineStore("tokens", () => {
     }
 
     // 同时删除IndexedDB中的数据
-    await deleteArrayBuffer(tokenId);
+    if (!adminManagedUser.value) {
+      await deleteArrayBuffer(tokenId);
+    }
+    scheduleTokenSync();
 
     return true;
   };
@@ -1138,6 +1248,7 @@ export const useTokenStore = defineStore("tokens", () => {
     try {
       if (data.tokens && Array.isArray(data.tokens)) {
         gameTokens.value = data.tokens;
+        scheduleTokenSync();
         return {
           success: true,
           message: `成功导入 ${data.tokens.length} 个Token`,
@@ -1159,8 +1270,11 @@ export const useTokenStore = defineStore("tokens", () => {
     gameTokens.value = [];
     selectedTokenId.value = null;
 
-    // 清空IndexedDB
-    await clearAll();
+    // 清空IndexedDB（管理员管理他人账号时不清空自己的BIN存储）
+    if (!adminManagedUser.value) {
+      await clearAll();
+    }
+    scheduleTokenSync();
   };
 
   const cleanExpiredTokens = async () => {
@@ -1404,6 +1518,10 @@ export const useTokenStore = defineStore("tokens", () => {
 
     // 设置跨标签页监听
     setupCrossTabListener();
+    // 已登录时优先拉取账号云端 token
+    if (hasAuthToken()) {
+      void syncTokensFromServer();
+    }
     tokenLogger.info("Token Store 初始化完成，连接监控已启动");
   };
   const setBattleVersion = (version: number | null) => {
@@ -1563,6 +1681,11 @@ export const useTokenStore = defineStore("tokens", () => {
     exportTokens,
     importTokens,
     clearAllTokens,
+    syncTokensToServer,
+    syncTokensFromServer,
+    adminManagedUser,
+    enterAdminUserContext,
+    exitAdminUserContext,
     cleanExpiredTokens,
     upgradeTokenToPermanent,
     initTokenStore,

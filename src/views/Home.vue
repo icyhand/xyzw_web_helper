@@ -6,7 +6,7 @@
         <div class="nav-content">
           <div class="nav-brand">
             <img src="/icons/xiaoyugan.png" alt="XYZW" class="brand-logo" />
-            <span class="brand-text">XYZW 游戏管理系统</span>
+            <span class="brand-text">武夜 游戏管理系统</span>
           </div>
 
           <div class="mobile-menu-button">
@@ -135,7 +135,7 @@
         <div class="container">
           <div class="hero-content">
             <div class="hero-text">
-              <h1 class="hero-title">专业的游戏管理平台</h1>
+              <h1 class="hero-title">武夜俱乐部管理平台</h1>
               <p class="hero-subtitle">让游戏变得更简单，让管理变得更高效</p>
               <div class="hero-actions">
                 <n-button
@@ -151,15 +151,6 @@
                   "
                 >
                   {{ authStore.isAuthenticated ? "进入控制台" : "立即开始" }}
-                </n-button>
-                <n-button
-                  text
-                  type="primary"
-                  size="large"
-                  class="hero-button"
-                  @click="scrollToFeatures"
-                >
-                  了解更多
                 </n-button>
               </div>
             </div>
@@ -185,74 +176,8 @@
         </div>
       </section>
 
-      <!-- 功能特性 -->
-      <section ref="featuresSection" class="features-section">
-        <div class="container">
-          <div class="section-header">
-            <h2 class="section-title">核心功能</h2>
-            <p class="section-subtitle">为您提供全方位的游戏管理解决方案</p>
-          </div>
-
-          <div class="features-grid">
-            <div
-              v-for="feature in features"
-              :key="feature.id"
-              class="feature-item"
-            >
-              <div class="feature-icon">
-                <component :is="feature.icon" />
-              </div>
-              <h3 class="feature-title">
-                {{ feature.title }}
-              </h3>
-              <p class="feature-description">
-                {{ feature.description }}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 统计数据 -->
-      <section class="stats-section">
-        <div class="container">
-          <div class="stats-grid">
-            <div v-for="stat in stats" :key="stat.id" class="stat-item">
-              <div class="stat-number">
-                {{ stat.number }}
-              </div>
-              <div class="stat-label">
-                {{ stat.label }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
-    <!-- 页脚 -->
-    <footer class="footer">
-      <div class="container">
-        <div class="footer-content">
-          <div class="footer-brand">
-            <img src="/icons/xiaoyugan.png" alt="XYZW" class="footer-logo" />
-            <span class="footer-text">XYZW 游戏管理系统</span>
-          </div>
-          <div class="footer-links">
-            <router-link to="/changelog" class="footer-link">
-              更新日志
-            </router-link>
-            <a href="#" class="footer-link">关于我们</a>
-            <a href="#" class="footer-link">隐私政策</a>
-            <a href="#" class="footer-link">服务条款</a>
-            <a href="#" class="footer-link">联系我们</a>
-          </div>
-        </div>
-        <div class="footer-bottom">
-          <p>&copy; 2024 XYZW. All rights reserved.</p>
-        </div>
-      </div>
-    </footer>
   </div>
 </template>
 
@@ -264,7 +189,6 @@ import { PersonCircle, Cube, Ribbon, Settings, Menu } from "@vicons/ionicons5";
 
 const router = useRouter();
 const authStore = useAuthStore();
-const featuresSection = ref(null);
 const isMobileMenuOpen = ref(false);
 
 // 功能卡片数据
@@ -288,51 +212,6 @@ const featureCards = ref([
     description: "全面的数据分析",
   },
 ]);
-
-// 功能特性数据
-const features = ref([
-  {
-    id: 1,
-    icon: markRaw(PersonCircle),
-    title: "角色管理",
-    description: "轻松管理多个游戏角色，统一查看角色信息、等级进度和装备状态",
-  },
-  {
-    id: 2,
-    icon: markRaw(Cube),
-    title: "任务自动化",
-    description: "智能日常任务系统，自动完成重复性任务，节省您的宝贵时间",
-  },
-  {
-    id: 3,
-    icon: markRaw(Ribbon),
-    title: "数据分析",
-    description: "详细的数据统计和分析报告，帮助您更好地了解游戏进度",
-  },
-  {
-    id: 4,
-    icon: markRaw(Settings),
-    title: "个性化设置",
-    description: "灵活的配置选项，根据您的需求定制最适合的管理方案",
-  },
-]);
-
-// 统计数据
-const stats = ref([
-  { id: 1, number: "1000+", label: "活跃用户" },
-  { id: 2, number: "50K+", label: "管理角色" },
-  { id: 3, number: "100K+", label: "完成任务" },
-  { id: 4, number: "99.9%", label: "系统稳定性" },
-]);
-
-// 滚动到功能区域
-const scrollToFeatures = () => {
-  if (featuresSection.value) {
-    featuresSection.value.scrollIntoView({
-      behavior: "smooth",
-    });
-  }
-};
 
 onMounted(() => {
   // 初始化认证状态
